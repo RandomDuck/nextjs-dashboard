@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+const path = '/dashboard/invoices';
  
 const FormSchema = z.object({
   id: z.string(),
@@ -34,33 +35,42 @@ export async function createInvoice(formData:FormData) {
       VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
     `;
   } catch (e) {
-    console.log(e)
+    return { message: 'Database Error: Failed to Create Invoice.' };
   }
-  const path = '/dashboard/invoices';
   revalidatePath(path);
   redirect(path);
 }
 
 export async function updateInvoice(id: string, formData: FormData) {
-  const { customerId, amount, status } = UpdateInvoice.parse({
-    customerId: formData.get('customerId'),
-    amount: formData.get('amount'),
-    status: formData.get('status'),
-  });
+  try {
+    const { customerId, amount, status } = UpdateInvoice.parse({
+      customerId: formData.get('customerId'),
+      amount: formData.get('amount'),
+      status: formData.get('status'),
+    });
+  
+    const amountInCents = amount * 100;
+  
+    await sql`
+      UPDATE invoices
+      SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
+      WHERE id = ${id}
+    `;
+  } catch (e) {
+    return { message: 'Database Error: Failed to Update Invoice.', id };
+  }
  
-  const amountInCents = amount * 100;
- 
-  await sql`
-    UPDATE invoices
-    SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
-    WHERE id = ${id}
-  `;
- 
-  revalidatePath('/dashboard/invoices');
-  redirect('/dashboard/invoices');
+  revalidatePath(path);
+  redirect(path);
 }
 
 export async function deleteInvoice(id: string) {
-  await sql`DELETE FROM invoices WHERE id = ${id}`;
-  revalidatePath('/dashboard/invoices');
+
+  throw new Error('Failed to Delete Invoice');
+  try {
+    await sql`DELETE FROM invoices WHERE id = ${id}`;
+  } catch (e) {
+    return { message: 'Database Error: Failed to Delete Invoice.', id };
+  }
+  revalidatePath(path);
 }
